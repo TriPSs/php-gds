@@ -6,3 +6,4 @@ _examples/
 app.yaml
 index.yaml
 composer.lock
+.idea

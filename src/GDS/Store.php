@@ -31,42 +31,42 @@ class Store
      *
      * @var Gateway
      */
-    private $obj_gateway = null;
+    protected $obj_gateway = null;
 
     /**
      * The GDS Schema defining the Entity we're operating with
      *
      * @var Schema
      */
-    private $obj_schema = null;
+    protected $obj_schema = null;
 
     /**
      * The last GQL query
      *
      * @var string|null
      */
-    private $str_last_query = null;
+    protected $str_last_query = null;
 
     /**
      * Named parameters for the last query
      *
      * @var array|null
      */
-    private $arr_last_params = null;
+    protected $arr_last_params = null;
 
     /**
      * The last result cursor
      *
      * @var string|null
      */
-    private $str_last_cursor = null;
+    protected $str_last_cursor = null;
 
     /**
      * Transaction ID
      *
      * @var null|string
      */
-    private $str_transaction_id = null;
+    protected $str_transaction_id = null;
 
     /**
      * Gateway and Schema/Kind can be supplied on construction
@@ -89,7 +89,7 @@ class Store
      * @return Schema
      * @throws \Exception
      */
-    private function determineSchema($mix_schema)
+    protected function determineSchema($mix_schema)
     {
         if(null === $mix_schema) {
             $mix_schema = $this->buildSchema();
@@ -380,7 +380,7 @@ class Store
      *
      * @return string|null
      */
-    private function consumeTransaction()
+    protected function consumeTransaction()
     {
         $str_transaction_id = $this->str_transaction_id;
         $this->str_transaction_id = null;
