@@ -26,6 +26,13 @@ abstract class Mapper
 {
 
     /**
+     * Mapping method
+     */
+    const MAP_ENTITY = 1;
+    const MAP_KEY_ONLY = 2;
+    const MAP_PROJECTION = 3;
+
+    /**
      * Datetime format for backwards compatibility
      */
     const DATETIME_FORMAT_V2 = 'Y-m-d H:i:s';
@@ -36,6 +43,36 @@ abstract class Mapper
      * @var Schema
      */
     protected $obj_schema = null;
+
+    /**
+     * Mapping method (full/key/projection)
+     *
+     * @var int
+     */
+    protected $int_map_type = self::MAP_ENTITY;
+
+    /**
+     * Set a specific mapping method
+     *
+     * @param $int_map_type
+     * @return $this
+     */
+    public function setMapping($int_map_type)
+    {
+        $this->int_map_type = $int_map_type;
+        return $this;
+    }
+
+    /**
+     * Reset the mapping method
+     *
+     * @return $this
+     */
+    public function resetMapping()
+    {
+        $this->int_map_type = self::MAP_ENTITY;
+        return $this;
+    }
 
     /**
      * Set the schema
@@ -97,6 +134,7 @@ abstract class Mapper
 
             case 'resource':
             case 'null':
+            case 'NULL':
             case 'unknown type':
             default:
                 $int_dynamic_type = Schema::PROPERTY_STRING;
@@ -130,10 +168,40 @@ abstract class Mapper
      *
      * @param $int_type
      * @param object $obj_property
-     * @return mixed
+     * @return array
      * @throws \Exception
      */
-    abstract protected function extractPropertyValue($int_type, $obj_property);
+    protected function extractPropertyValue($int_type, $obj_property)
+    {
+        switch ($int_type) {
+            case Schema::PROPERTY_STRING:
+                return $obj_property->getStringValue();
+
+            case Schema::PROPERTY_INTEGER:
+                return $obj_property->getIntegerValue();
+
+            case Schema::PROPERTY_DATETIME:
+                return $this->extractDatetimeValue($obj_property);
+
+            case Schema::PROPERTY_DOUBLE:
+            case Schema::PROPERTY_FLOAT:
+                return $obj_property->getDoubleValue();
+
+            case Schema::PROPERTY_BOOLEAN:
+                return $obj_property->getBooleanValue();
+
+            case Schema::PROPERTY_GEOPOINT:
+                return $this->extractGeopointValue($obj_property);
+
+            case Schema::PROPERTY_STRING_LIST:
+                return $this->extractStringListValue($obj_property);
+
+            case Schema::PROPERTY_DETECT:
+                return $this->extractAutoDetectValue($obj_property);
+
+        }
+        throw new \Exception('Unsupported field type: ' . $int_type);
+    }
 
     /**
      * Auto detect & extract a value

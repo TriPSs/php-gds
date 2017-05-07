@@ -16,6 +16,7 @@
  */
 namespace GDS\Mapper;
 use GDS\Entity;
+use GDS\KeyInterface;
 use GDS\Property\Geopoint;
 use GDS\Schema;
 use google\appengine\datastore\v4\EntityResult;
@@ -29,6 +30,22 @@ use google\appengine\datastore\v4\Value;
  */
 class ProtoBuf extends \GDS\Mapper
 {
+
+    /**
+     * @var \GDS\Gateway\ProtoBuf
+     */
+    private $obj_gateway = null;
+
+    /**
+     * @param \GDS\Gateway\ProtoBuf $obj_gateway
+     * @param \GDS\Gateway\ProtoBuf $obj_gateway
+     * @return $this
+     */
+    public function setGateway(\GDS\Gateway\ProtoBuf $obj_gateway)
+    {
+        $this->obj_gateway = $obj_gateway;
+        return $this;
+    }
 
     /**
      * Map from GDS to Google Protocol Buffer
@@ -67,7 +84,13 @@ class ProtoBuf extends \GDS\Mapper
     public function mapOneFromResult($obj_result)
     {
         // Key & Ancestry
+        /** @var $obj_gds_entity Entity */
         list($obj_gds_entity, $bol_schema_match) = $this->createEntityWithKey($obj_result);
+
+        // Key only? Exit early
+        if(self::MAP_KEY_ONLY === $this->int_map_type) {
+            return $obj_gds_entity;
+        }
 
         // Properties
         $arr_property_definitions = $this->obj_schema->getProperties();
@@ -95,16 +118,20 @@ class ProtoBuf extends \GDS\Mapper
     {
         // Get the full key path
         $arr_key_path = $obj_result->getEntity()->getKey()->getPathElementList();
+        /** @var $arr_key_path \google\appengine\datastore\v4\Key\PathElement[] */
 
         // Key for 'self' (the last part of the KEY PATH)
-        /* @var $obj_path_end \google\appengine\datastore\v4\Key\PathElement */
         $obj_path_end = array_pop($arr_key_path);
         if($obj_path_end->getKind() == $this->obj_schema->getKind()) {
             $bol_schema_match = TRUE;
             $obj_gds_entity = $this->obj_schema->createEntity();
         } else {
             $bol_schema_match = FALSE;
-            $obj_gds_entity = (new \GDS\Entity())->setKind($obj_path_end->getKind());
+            if(self::MAP_KEY_ONLY === $this->int_map_type) {
+                $obj_gds_entity = (new \GDS\Key())->setKind($obj_path_end->getKind());
+            } else {
+                $obj_gds_entity = (new \GDS\Entity())->setKind($obj_path_end->getKind());
+            }
         }
 
         // Set ID or Name (will always have one or the other)
@@ -119,11 +146,10 @@ class ProtoBuf extends \GDS\Mapper
         if($int_ancestor_elements > 0) {
             $arr_anc_path = [];
             foreach ($arr_key_path as $obj_kpe) {
-                $arr_anc_path[] = [
-                    'kind' => $obj_kpe->getKind(),
-                    'id' => $obj_kpe->hasId() ? $obj_kpe->getId() : null,
-                    'name' => $obj_kpe->hasName() ? $obj_kpe->getName() : null
-                ];
+                $arr_anc_path[] = (new \GDS\Key())
+                    ->setKind($obj_kpe->getKind())
+                    ->setKeyId($obj_kpe->hasId() ? $obj_kpe->getId() : null)
+                    ->setKeyName($obj_kpe->hasName() ? $obj_kpe->getName() : null);
             }
             $obj_gds_entity->setAncestry($arr_anc_path);
         }
@@ -133,47 +159,53 @@ class ProtoBuf extends \GDS\Mapper
     }
 
     /**
-     * Populate a ProtoBuf Key from a GDS Entity
+     * Populate a ProtoBuf Key from a GDS KeyInterface
      *
      * @param Key $obj_key
-     * @param Entity $obj_gds_entity
+     * @param KeyInterface $obj_gds_key
      * @return Key
      */
-    public function configureGoogleKey(Key $obj_key, Entity $obj_gds_entity)
+    public function configureGoogleKey(Key $obj_key, KeyInterface $obj_gds_key)
     {
         // Add any ancestors FIRST
-        $mix_ancestry = $obj_gds_entity->getAncestry();
+        $mix_ancestry = $obj_gds_key->getAncestry();
         if(is_array($mix_ancestry)) {
             // @todo Get direction right!
-            foreach ($mix_ancestry as $arr_ancestor_element) {
-                $this->configureGoogleKeyPathElement($obj_key->addPathElement(), $arr_ancestor_element);
+            foreach ($mix_ancestry as $mix_ancestor_element) {
+                $this->configureGoogleKeyPathElement($obj_key->addPathElement(), $mix_ancestor_element);
             }
-        } elseif ($mix_ancestry instanceof Entity) {
+        } elseif ($mix_ancestry instanceof KeyInterface) {
             // Recursive
             $this->configureGoogleKey($obj_key, $mix_ancestry);
         }
 
         // Root Key (must be the last in the chain)
         $this->configureGoogleKeyPathElement($obj_key->addPathElement(), [
-            'kind' => $obj_gds_entity->getKind(),
-            'id' => $obj_gds_entity->getKeyId(),
-            'name' => $obj_gds_entity->getKeyName()
+            'kind' => $obj_gds_key->getKind(),
+            'id' => $obj_gds_key->getKeyId(),
+            'name' => $obj_gds_key->getKeyName()
         ]);
 
         return $obj_key;
     }
 
     /**
-     * Configure a Google Key Path Element object
+     * Configure a Google Key Path Element object (from either Array format or KeyInterface format data)
      *
      * @param Key\PathElement $obj_path_element
-     * @param array $arr_kpe
+     * @param array|KeyInterface $mix_key_part
      */
-    private function configureGoogleKeyPathElement(Key\PathElement $obj_path_element, array $arr_kpe)
+    private function configureGoogleKeyPathElement(Key\PathElement $obj_path_element, $mix_key_part)
     {
-        $obj_path_element->setKind($arr_kpe['kind']);
-        isset($arr_kpe['id']) && $obj_path_element->setId($arr_kpe['id']);
-        isset($arr_kpe['name']) && $obj_path_element->setName($arr_kpe['name']);
+        if($mix_key_part instanceof KeyInterface) {
+            $obj_path_element->setKind($mix_key_part->getKind());
+            (null !== $mix_key_part->getKeyId()) && $obj_path_element->setId($mix_key_part->getKeyId());
+            (null !== $mix_key_part->getKeyName()) && $obj_path_element->setName($mix_key_part->getKeyName());
+        } else if (is_array($mix_key_part)) {
+            $obj_path_element->setKind($mix_key_part['kind']);
+            isset($mix_key_part['id']) && $obj_path_element->setId($mix_key_part['id']);
+            isset($mix_key_part['name']) && $obj_path_element->setName($mix_key_part['name']);
+        }
     }
 
     /**
@@ -236,6 +268,12 @@ class ProtoBuf extends \GDS\Mapper
                 foreach ((array)$mix_value as $str) {
                     $obj_val->addListValue()->setStringValue($str)->setIndexed($bol_index);
                 }
+                break;
+
+            case Schema::PROPERTY_KEY:
+                $this->obj_gateway->applyNamespace(
+                    $this->configureGoogleKey($obj_val->mutableKeyValue(), $mix_value)
+                );
                 break;
 
             default:
