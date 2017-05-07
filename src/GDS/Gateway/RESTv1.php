@@ -120,19 +120,23 @@ class RESTv1 extends \GDS\Gateway
         $arr_upserts = [];
 
         foreach($arr_entities as $obj_gds_entity) {
-            $create = !!$obj_gds_entity->getKeyId() || !!$obj_gds_entity->getKeyName();
+            $mode = $obj_gds_entity->getMode();
+
+            if ($obj_gds_entity->getMode() === Entity::MODE_DEFAULT) {
+                $mode = !!$obj_gds_entity->getKeyId() || !!$obj_gds_entity->getKeyName() ? Entity::MODE_UPDATE : Entity::MODE_INSERT;
+            }
 
             // Build a REST object, apply current partition
             $obj_rest_entity = $this->createMapper()->mapToGoogle($obj_gds_entity);
             $this->applyPartition($obj_rest_entity->key);
 
-            if($create) {
+            if($mode === Entity::MODE_INSERT) {
                 $arr_inserts[] = (object)['insert' => $obj_rest_entity];
 
                 if (!$obj_gds_entity->getKeyId() && !$obj_gds_entity->getKeyName()) {
                     $arr_auto_id_required[] = $obj_gds_entity; // maintain reference to the array of requested auto-ids
                 }
-            } else {
+            } else if ($mode === Entity::MODE_UPDATE) {
                 $arr_upserts[] = (object)['upsert' => $obj_rest_entity];
             }
         }

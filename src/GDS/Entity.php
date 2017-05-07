@@ -25,6 +25,10 @@ namespace GDS;
 class Entity extends Key implements KeyInterface
 {
 
+    const MODE_DEFAULT = "auto";
+    const MODE_INSERT = "insert";
+    const MODE_UPDATE = "update";
+
     /**
      * Field Data
      *
@@ -38,6 +42,13 @@ class Entity extends Key implements KeyInterface
      * @var Schema|null
      */
     private $obj_schema = null;
+
+    /**
+     * The mode of the Enity
+     *
+     * @var string
+     */
+    private $mode = Entity::MODE_DEFAULT;
 
     /**
      * Magic setter.. sorry
@@ -105,6 +116,17 @@ class Entity extends Key implements KeyInterface
     {
         $this->obj_schema = $obj_schema;
         $this->setKind($obj_schema->getKind());
+        return $this;
+    }
+
+    public function getMode()
+    {
+        return $this->mode;
+    }
+
+    public function setMode($mode)
+    {
+        $this->mode = $mode;
         return $this;
     }
 
