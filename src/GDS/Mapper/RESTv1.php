@@ -259,7 +259,6 @@ class RESTv1 extends \GDS\Mapper
      */
     public function mapToGoogle(Entity $obj_gds_entity)
     {
-
         // Base entity with key (partition applied later)
         $obj_rest_entity = (object)[
             'key' => (object)['path' => $this->buildKeyPath($obj_gds_entity)],
